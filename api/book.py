@@ -32,6 +32,7 @@ CORS_ORIGIN = os.environ.get("CORS_ORIGIN", "*")
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 BOOKING_EMAIL_TO = os.environ.get("BOOKING_EMAIL_TO", "bsckrd@gmail.com")
 BOOKING_EMAIL_FROM = os.environ.get("BOOKING_EMAIL_FROM", "БСК запись <onboarding@resend.dev>")
+SHEETS_WEBHOOK_URL = os.environ.get("SHEETS_WEBHOOK_URL", "")
 
 # In-memory pessimistic lock на инстансе Vercel
 PENDING_BOOKINGS = {}  # {"doctor:date:time": expires_at}
@@ -96,6 +97,41 @@ def _send_email(subject: str, html_body: str, plain_body: str) -> bool:
         return False
     except Exception as e:
         print(f"Resend error: {e}")
+        return False
+
+
+def _send_to_sheets(doctor: str, date: str, slot_time: str, name: str, phone_pretty: str) -> bool:
+    """Шлёт строку в Google Sheets через Apps Script Web App webhook."""
+    if not SHEETS_WEBHOOK_URL:
+        print("Sheets webhook not configured (SHEETS_WEBHOOK_URL missing)")
+        return False
+    payload = json.dumps({
+        "doctor": doctor,
+        "date": date,
+        "time": slot_time,
+        "name": name,
+        "phone": phone_pretty,
+        "consent": True,
+        "source": "bsckrd.ru",
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        SHEETS_WEBHOOK_URL,
+        data=payload, method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (compatible; BSK-booking/1.0; +https://bsckrd.ru)",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = resp.read().decode("utf-8", errors="ignore")
+        print(f"Sheets response: {body[:200]}")
+        return True
+    except urllib.error.HTTPError as e:
+        print(f"Sheets HTTP {e.code}: {e.read()[:300]}")
+        return False
+    except Exception as e:
+        print(f"Sheets error: {e}")
         return False
 
 
@@ -202,11 +238,13 @@ class handler(BaseHTTPRequestHandler):
         phone_pretty = _pretty_phone(phone)
         subject = f"Запись: {name} — {date} {slot_time}"
         html_body, plain_body = _build_email(doctor, date, slot_time, name, phone_pretty)
-        sent = _send_email(subject, html_body, plain_body)
+        sent_email = _send_email(subject, html_body, plain_body)
+        sent_sheet = _send_to_sheets(doctor, date, slot_time, name, phone_pretty)
 
         return self._json(200, {
             "ok": True,
-            "email_sent": sent,
+            "email_sent": sent_email,
+            "sheet_logged": sent_sheet,
             "pending_key": key,
             "expires_in": PENDING_TTL,
         })
