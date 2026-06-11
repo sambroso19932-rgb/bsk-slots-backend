@@ -236,10 +236,12 @@ class handler(BaseHTTPRequestHandler):
         PENDING_BOOKINGS[key] = time.time() + PENDING_TTL
 
         phone_pretty = _pretty_phone(phone)
+        # Для Google Sheets — телефон без «+», иначе формулы могут трактовать как мат. выражение
+        phone_for_sheet = phone_pretty.lstrip("+")
         subject = f"Запись: {name} — {date} {slot_time}"
         html_body, plain_body = _build_email(doctor, date, slot_time, name, phone_pretty)
         sent_email = _send_email(subject, html_body, plain_body)
-        sent_sheet = _send_to_sheets(doctor, date, slot_time, name, phone_pretty)
+        sent_sheet = _send_to_sheets(doctor, date, slot_time, name, phone_for_sheet)
 
         return self._json(200, {
             "ok": True,
