@@ -80,6 +80,10 @@ def _send_email(subject: str, html_body: str, plain_body: str) -> bool:
         headers={
             "Authorization": f"Bearer {RESEND_API_KEY}",
             "Content-Type": "application/json",
+            # Cloudflare перед Resend режет голый Python-urllib UA как бота.
+            # Маскируемся под обычный браузер.
+            "User-Agent": "Mozilla/5.0 (compatible; BSK-booking/1.0; +https://bsckrd.ru)",
+            "Accept": "application/json",
         },
     )
     try:
