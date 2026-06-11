@@ -3,11 +3,20 @@
   "functions": {
     "api/slots.py": {
       "runtime": "@vercel/python@4.5.0"
+    },
+    "api/book.py": {
+      "runtime": "@vercel/python@4.5.0"
     }
   },
   "headers": [
     {
       "source": "/api/slots",
+      "headers": [
+        {"key": "X-Robots-Tag", "value": "noindex"}
+      ]
+    },
+    {
+      "source": "/api/book",
       "headers": [
         {"key": "X-Robots-Tag", "value": "noindex"}
       ]
